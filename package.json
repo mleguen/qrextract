@@ -1,0 +1,23 @@
+{
+  "name": "qrextract",
+  "version": "1.0.0",
+  "description": "Extract QR codes from images for further processing",
+  "main": "qrextract.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mleguen/qrextract.git"
+  },
+  "keywords": [
+    "QR",
+    "code"
+  ],
+  "author": "Mael Le Guen <github@mlg.lgnby.fr>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/mleguen/qrextract/issues"
+  },
+  "homepage": "https://github.com/mleguen/qrextract#readme"
+}
