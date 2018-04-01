@@ -56,7 +56,7 @@ qrextract.everyMarkBoundingBox(inputImg, function(box, index) {
 }, {
 	quietZoneSizeMod: 0,
 })
-fs.writeFileSync("out_"+file, jpeg.encode(inputImg, 100).data)
+fs.writeFileSync("output.jpg", jpeg.encode(inputImg, 100).data)
 ```
 
 ## API
