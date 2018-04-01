@@ -1,6 +1,6 @@
 {
   "name": "qrextract",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Extract QR codes from images for further processing",
   "main": "qrextract.js",
   "scripts": {
