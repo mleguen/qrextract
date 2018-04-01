@@ -18,18 +18,20 @@ function getOptions(customOptions) {
 	// Constant options
 	var defaultOptions = {
 		// Error margin in % for the 90° angle formed by the 3 QR code marks
-		angleCompatMarginPct: 0.05,
+		angleCompatMarginPct: 0.1,
 		// Minimum color value difference between black and white modules
 		blackWhiteMinDiff: 100,
 		// Maximum and minimum QR code version (all by default)
 		codeVersionMax: 40,
 		codeVersionMin: 1,
 		// Error margin in % for the module size of 2 marks to be compatible
-		moduleCompatMarginPct: 0.05,
+		moduleCompatMarginPct: 0.2,
 		// Minimum module size
-		moduleSizePxMin: 5,
+		moduleSizePxMin: 4,
 		// Error margin in % for the X and Y module size of a mark to be compatible
-		moduleXYCompatMarginPct: 0.2,
+		moduleXYCompatMarginPct: 0.1,
+		// Size in modules of the quiet zone around a QR code
+		quietZoneSizeMod: 4,
 		// Size of the pixel window used when looking for marks on the X axis
 		windowSizePx: 100,
 		// Error margin in pixels for the black and white zones of a mark to be
@@ -58,7 +60,6 @@ function checkMarkY(image, x, ymin, ymax, threshold, options) {
 	ymin = ymin < 0 ? 0 : ymin
 	ymax = ymax >= image.height ? image.height-1 : ymax
 
-	var windowSizePx = ymax-ymin
 	var rowPnt = (ymin*image.width+x)*4
 
 	var lastIsBlack = (image.data[rowPnt] + image.data[rowPnt+1] + image.data[rowPnt+2])<threshold
@@ -87,8 +88,8 @@ function checkMarkY(image, x, ymin, ymax, threshold, options) {
 						((zoneLengths[4] >= minModSize) && (zoneLengths[4] <= maxModSize))
 					) {
 						markY.center = y-totZoneLength/2
-						markY.min = Math.floor(markY.center-markY.modSize*5)
-						markY.max = Math.ceil(markY.center+markY.modSize*5)
+						markY.min = Math.floor(markY.center-markY.modSize*1.5)
+						markY.max = Math.ceil(markY.center+markY.modSize*1.5)
 						return markY
 					}
 					totZoneLength -= zoneLengths.shift()
@@ -126,7 +127,7 @@ function findMarkX(image, options) {
 			lightest = Math.max(...pxWindow)
 
 			// If they are different enough to consider them as "black" and the "white"
-			if (lightest >= darkest + blackWhiteMinDiff) {
+			if (lightest >= darkest + options.blackWhiteMinDiff) {
 
 				// Define the threshold to distinguish black and white pixels (this
 				// threshold is recalculated each time the window moves, as lighting
@@ -170,8 +171,8 @@ function findMarkX(image, options) {
 									// At this point we have a potential mark on the X axis, whose
 									// center is the center of the five zones
 									markX.center = (colPnt-rowPnt)/4+(options.windowSizePx-winIdx)+totZoneLength/2
-									markX.min = Math.floor(markX.center-markX.modSize*5)
-									markX.max = Math.ceil(markX.center+markX.modSize*5)
+									markX.min = Math.floor(markX.center-markX.modSize*1.5)
+									markX.max = Math.ceil(markX.center+markX.modSize*1.5)
 
 									currentY = rowPnt/(image.width*4)
 
@@ -281,12 +282,6 @@ function groupMarksByPairs(marks, options) {
 			// (21x21 => 21 = 17 + 1*4) to version 40 (177x177 => 177 = 17 + 40*4)
 			version = Math.round((codeSize - 17) / 4)
 
-			// Does codeSize correspond to a precise version ? No => not a pair
-			if ((this.codeSize - 17) % 4 > 0) {
-				// console.log("Pair rejected: [%d, %d], bad code size %d, xModSize=%d, yModSize=%d, realModSize=%d", m1.id, m2.id, codeSize, xModSize, yModSize, realModSize)
-				return
-			}
-
 			// Not an authorized version => not a pair
 			if ((version < options.codeVersionMin) || (version > options.codeVersionMax)) {
 				// console.log("Pair rejected: [%d, %d], unauthorized version %d, xModSize=%d, yModSize=%d, realModSize=%d", m1.id, m2.id, version, xModSize, yModSize, realModSize)
@@ -353,9 +348,9 @@ function groupPairsByTriples(pairs, options) {
 			// They must form a 90° angle (top and left sides of the QR code)
 			angle = Math.abs(p2.angle-p1.angle)
 			if (
-				(angle < Math.PI/2.0*(1-options.angleCompatMarginPct) ||
-				(angle > Math.PI/2.0*(1+options.angleCompatMarginPct)
-			)) {
+				(angle < Math.PI/2.0*(1-options.angleCompatMarginPct)) ||
+				(angle > Math.PI/2.0*(1+options.angleCompatMarginPct))
+			) {
 				return
 			}
 			// Store the new triple
@@ -376,17 +371,17 @@ function groupPairsByTriples(pairs, options) {
 
 function sortTriples(triples) {
 	triples = triples.sort(function(t1, t2) {
-		// Sort first by ascending alternative count
-		if (t1.alternativeCount != t2.alternativeCount) {
-			return t1.alternativeCount-t2.alternativeCount
+		// Sort first by ascending version
+		if (t1.version != t2.version) {
+			return t1.version-t2.version
 		}
-		// Then by ascending version
-		return t1.version-t2.version
+		// Then by ascending alternative count
+		return t1.alternativeCount-t2.alternativeCount
 	})
 	// console.log("Triples sorted:")
-	triples.forEach(function(t, index) {
-		// console.log("Triple #%d: [%d, %d, %d], version %d, %d alternative(s)", index, ...t.marks.map(m => m.id), t.version, t.alternativeCount)
-	})
+	// triples.forEach(function(t, index) {
+	// 	console.log("Triple #%d: [%d, %d, %d], version %d, %d alternative(s)", index, ...t.marks.map(m => m.id), t.version, t.alternativeCount)
+	// })
 	return triples
 }
 
@@ -424,15 +419,15 @@ function chooseCodeTriples(triples) {
 	return chosen
 }
 
-function getBoundingBox(marks, imageWidth, imageHeight) {
+function getBoundingBox(marks, imageWidth, imageHeight, options) {
 	return {
 		min :{
-			x: Math.max(0, Math.floor(Math.min(...marks.map(m => m.x.center - 7*m.x.modSize)))),
-			y: Math.max(0, Math.floor(Math.min(...marks.map(m => m.y.center - 7*m.y.modSize)))),
+			x: Math.max(0, Math.floor(Math.min(...marks.map(m => m.x.center - (3.5+options.quietZoneSizeMod)*m.x.modSize)))),
+			y: Math.max(0, Math.floor(Math.min(...marks.map(m => m.y.center - (3.5+options.quietZoneSizeMod)*m.y.modSize)))),
 		},
 		max :{
-			x: Math.min(Math.ceil(Math.max(...marks.map(m => m.x.center + 7*m.x.modSize))), imageWidth),
-			y: Math.min(Math.ceil(Math.max(...marks.map(m => m.y.center + 7*m.y.modSize))), imageHeight),
+			x: Math.min(Math.ceil(Math.max(...marks.map(m => m.x.center + (3.5+options.quietZoneSizeMod)*m.x.modSize))), imageWidth),
+			y: Math.min(Math.ceil(Math.max(...marks.map(m => m.y.center + (3.5+options.quietZoneSizeMod)*m.y.modSize))), imageHeight),
 		},
 		threshold: marks.reduce((acc, m) => acc += m.threshold, 0) / marks.length
 	}
@@ -469,7 +464,7 @@ exports.everyMarkBoundingBox = function(image, callback, customOptions = {}) {
 	// console.log("%d marks found", marks.length)
 
 	return marks.every(function(m, index) {
-		var box = getBoundingBox([m], image.width, image.height)
+		var box = getBoundingBox([m], image.width, image.height, options)
 		// console.log("Mark %d: [%d, %d]- [%d, %d]", index, box.min.x, box.min.y, box.max.x, box.max.y)
 		return callback(box, index)
 	})
@@ -490,8 +485,8 @@ exports.everyPairBoundingBox = function(image, callback, customOptions = {}) {
 	var pairs = groupMarksByPairs(marks, options)
 	// console.log("%d pairs found", pairs.length)
 
-	return pairs.every(function(m, index) {
-		var box = getBoundingBox(p.marks, image.width, image.height)
+	return pairs.every(function(p, index) {
+		var box = getBoundingBox(p.marks, image.width, image.height, options)
 		// console.log("Pair %d: [%d, %d]- [%d, %d]", index, box.min.x, box.min.y, box.max.x, box.max.y)
 		return callback(box, index)
 	})
@@ -504,7 +499,7 @@ exports.everyPairImage = function(image, callback, customOptions = {}) {
 	}, customOptions)
 }
 
-function getCodeBoundingBox(t, imageWidth, imageHeight) {
+function getCodeBoundingBox(t, imageWidth, imageHeight, options) {
 	// Let's calculate the center of a virtual bottom right mark
 	m4 = {
 		x: {
@@ -518,7 +513,7 @@ function getCodeBoundingBox(t, imageWidth, imageHeight) {
 		threshold: t.marks.reduce((acc, m) => acc += m.threshold, 0) / t.marks.length,
 	}
 
-	return getBoundingBox([...t.marks, m4], imageWidth, imageHeight)
+	return getBoundingBox([...t.marks, m4], imageWidth, imageHeight, options)
 }
 
 exports.everyTripleBoundingBox = function(image, callback, customOptions = {}) {
@@ -532,7 +527,7 @@ exports.everyTripleBoundingBox = function(image, callback, customOptions = {}) {
 	// console.log("%d triples found", triples.length)
 
 	return triples.every(function(t, index) {
-		var box = getCodeBoundingBox(t, image.width, image.height)
+		var box = getCodeBoundingBox(t, image.width, image.height, options)
 		// console.log("Triple %d: [%d, %d]- [%d, %d]", index, box.min.x, box.min.y, box.max.x, box.max.y)
 		return callback(box, index)
 	})
@@ -558,7 +553,7 @@ exports.everyCodeBoundingBox = function(image, callback, customOptions = {}) {
 	// console.log("%d QR codes found", triples.length)
 
 	return triples.every(function(t, index) {
-		var box = getCodeBoundingBox(t, image.width, image.height)
+		var box = getCodeBoundingBox(t, image.width, image.height, options)
 		// console.log("Triple %d: [%d, %d]- [%d, %d]", index, box.min.x, box.min.y, box.max.x, box.max.y)
 		return callback(box, index)
 	})
